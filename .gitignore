@@ -1,0 +1,17 @@
+.github
+.planning
+
+# Docker local certs and runtime data
+docker/nginx/certs/
+
+# Laravel app artifacts
+src/.env
+src/vendor/
+src/node_modules/
+src/storage/*.key
+src/storage/logs/*.log
+src/bootstrap/cache/*.php
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
