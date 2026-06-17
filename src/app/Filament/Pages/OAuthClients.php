@@ -103,55 +103,6 @@ class OAuthClients extends Page
                     }
                 }),
 
-            Action::make('rotateClientSecret')
-                ->label('Rotar secret')
-                ->icon('heroicon-o-arrow-path')
-                ->color('warning')
-                ->schema([
-                    Select::make('client_id')
-                        ->label('Cliente')
-                        ->options(fn(): array => $this->passwordGrantClientOptions()->all())
-                        ->default($this->activeClientId)
-                        ->searchable()
-                        ->required(),
-                ])
-                ->action(function (array $data): void {
-                    try {
-                        $repository = app(ClientRepository::class);
-                        $client = $this->findClientById((string) $data['client_id']);
-
-                        if (!$client) {
-                            Notification::make()
-                                ->title('Cliente no encontrado')
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        $repository->regenerateSecret($client);
-
-                        $this->activeClientId = (string) $client->getKey();
-                        $this->activeClientName = $client->name;
-                        $this->activeClientProvider = $client->provider;
-                        $this->generatedClientId = (string) $client->getKey();
-                        $this->generatedClientSecret = $client->plainSecret;
-
-                        Notification::make()
-                            ->title('Secret rotado')
-                            ->success()
-                            ->body('El secret anterior ya no funciona.')
-                            ->send();
-                    } catch (Throwable $exception) {
-                        Notification::make()
-                            ->title('No se pudo rotar el secret')
-                            ->danger()
-                            ->body($exception->getMessage())
-                            ->send();
-                    }
-                })
-                ->visible(fn(): bool => $this->passwordGrantClientOptions()->isNotEmpty()),
-
             Action::make('createMobilePkceClient')
                 ->label('Crear cliente mobile PKCE')
                 ->icon('heroicon-o-device-phone-mobile')
@@ -210,91 +161,38 @@ class OAuthClients extends Page
                             ->send();
                     }
                 }),
-
-            Action::make('revokeMobileClient')
-                ->label('Revocar cliente mobile')
-                ->icon('heroicon-o-no-symbol')
-                ->color('danger')
-                ->requiresConfirmation()
-                ->schema([
-                    Select::make('client_id')
-                        ->label('Cliente mobile')
-                        ->options(fn(): array => $this->mobilePkceClientOptions()->all())
-                        ->default($this->activeMobileClientId)
-                        ->searchable()
-                        ->required(),
-                ])
-                ->action(function (array $data): void {
-                    $client = $this->findClientById((string) $data['client_id']);
-
-                    if (!$client) {
-                        Notification::make()
-                            ->title('Cliente no encontrado')
-                            ->danger()
-                            ->send();
-
-                        return;
-                    }
-
-                    $this->revokeClientAndTokens($client);
-
-                    if ($this->activeMobileClientId === (string) $client->getKey()) {
-                        $this->generatedMobileClientId = null;
-                        $this->generatedMobileRedirectUris = [];
-                    }
-
-                    $this->refreshActiveMobileClient();
-
-                    Notification::make()
-                        ->title('Cliente mobile revocado')
-                        ->success()
-                        ->body('Tambien se revocaron access y refresh tokens emitidos para este cliente.')
-                        ->send();
-                })
-                ->visible(fn(): bool => $this->mobilePkceClientOptions()->isNotEmpty()),
-
-            Action::make('revokeClient')
-                ->label('Revocar cliente')
-                ->icon('heroicon-o-no-symbol')
-                ->color('danger')
-                ->requiresConfirmation()
-                ->schema([
-                    Select::make('client_id')
-                        ->label('Cliente')
-                        ->options(fn(): array => $this->passwordGrantClientOptions()->all())
-                        ->default($this->activeClientId)
-                        ->searchable()
-                        ->required(),
-                ])
-                ->action(function (array $data): void {
-                    $client = $this->findClientById((string) $data['client_id']);
-
-                    if (!$client) {
-                        Notification::make()
-                            ->title('Cliente no encontrado')
-                            ->danger()
-                            ->send();
-
-                        return;
-                    }
-
-                    $this->revokeClientAndTokens($client);
-
-                    if ($this->activeClientId === (string) $client->getKey()) {
-                        $this->generatedClientId = null;
-                        $this->generatedClientSecret = null;
-                    }
-
-                    $this->refreshActiveClient();
-
-                    Notification::make()
-                        ->title('Cliente revocado')
-                        ->success()
-                        ->body('Tambien se revocaron access y refresh tokens emitidos para este cliente.')
-                        ->send();
-                })
-                ->visible(fn(): bool => $this->passwordGrantClientOptions()->isNotEmpty()),
         ];
+    }
+
+    /**
+     * @return Collection<int, Client>
+     */
+    public function clients(): Collection
+    {
+        return Passport::client()
+            ->newQuery()
+            ->where('revoked', false)
+            ->latest('created_at')
+            ->get()
+            ->values();
+    }
+
+    public function clientDetailUrl(Client $client): string
+    {
+        return \App\Filament\Pages\OAuthClientDetail::getUrl(['client' => (string) $client->getKey()]);
+    }
+
+    public function clientGrantLabel(Client $client): string
+    {
+        if ($client->hasGrantType('password')) {
+            return 'Password Grant';
+        }
+
+        if ($client->hasGrantType('authorization_code')) {
+            return 'PKCE';
+        }
+
+        return 'OAuth';
     }
 
     public function getEnvSnippet(): string
@@ -346,7 +244,7 @@ class OAuthClients extends Page
         $this->activeMobileRedirectUris = $client?->redirect_uris ?? [];
     }
 
-    protected function passwordGrantClients(): Collection
+    public function passwordGrantClients(): Collection
     {
         return Passport::client()
             ->newQuery()
@@ -354,7 +252,8 @@ class OAuthClients extends Page
             ->latest('created_at')
             ->get()
             ->filter(fn(Client $client): bool => $client->hasGrantType('password'))
-            ->values();
+            ->values()
+            ->load('tokens.refreshToken');
     }
 
     protected function passwordGrantClientOptions(): Collection
@@ -365,7 +264,7 @@ class OAuthClients extends Page
             ]);
     }
 
-    protected function mobilePkceClients(): Collection
+    public function mobilePkceClients(): Collection
     {
         return Passport::client()
             ->newQuery()
@@ -373,7 +272,8 @@ class OAuthClients extends Page
             ->latest('created_at')
             ->get()
             ->filter(fn(Client $client): bool => $client->hasGrantType('authorization_code') && !$client->confidential())
-            ->values();
+            ->values()
+            ->load('tokens.refreshToken');
     }
 
     protected function mobilePkceClientOptions(): Collection
