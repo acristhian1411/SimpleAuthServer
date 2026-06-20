@@ -37,6 +37,8 @@ class OAuthClients extends Page
 
     public ?string $generatedClientSecret = null;
 
+    public bool $showClientSecret = false;
+
     public ?string $activeMobileClientId = null;
 
     public ?string $activeMobileClientName = null;
@@ -88,12 +90,15 @@ class OAuthClients extends Page
                         $this->activeClientProvider = $client->provider;
                         $this->generatedClientId = (string) $client->getKey();
                         $this->generatedClientSecret = $client->plainSecret;
+                        $this->rememberClientSecret($client, $client->plainSecret);
 
                         Notification::make()
                             ->title('Cliente OAuth creado')
                             ->success()
-                            ->body('Copia el secret ahora: por seguridad no se puede volver a ver luego.')
+                            ->body('Se muestra el secret en la vista de detalle para que puedas copiarlo ahora.')
                             ->send();
+
+                        $this->redirect(OAuthClientDetail::getUrl(['client' => (string) $client->getKey()]));
                     } catch (Throwable $exception) {
                         Notification::make()
                             ->title('No se pudo crear el cliente')
@@ -206,6 +211,35 @@ class OAuthClients extends Page
             "AUTH_CLIENT_SECRET={$this->generatedClientSecret}",
             'AUTH_SCOPE=',
         ]);
+    }
+
+    public function toggleClientSecretVisibility(): void
+    {
+        $this->showClientSecret = !$this->showClientSecret;
+    }
+
+    public function rememberClientSecret(Client $client, ?string $secret): void
+    {
+        if (!filled($secret)) {
+            return;
+        }
+
+        session()->put('oauth_client_secret.' . $client->getKey(), $secret);
+    }
+
+    public function getClientSecretForDisplay(): ?string
+    {
+        if (filled($this->generatedClientSecret)) {
+            return $this->generatedClientSecret;
+        }
+
+        $clientId = $this->clientId ?? $this->generatedClientId ?? $this->activeClientId;
+
+        if (!$clientId) {
+            return null;
+        }
+
+        return session('oauth_client_secret.' . $clientId);
     }
 
     public function getMobileEnvSnippet(): string

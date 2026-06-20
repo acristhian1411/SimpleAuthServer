@@ -40,6 +40,27 @@
                 </div>
 
                 <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-950">
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="text-xs uppercase tracking-wide text-gray-500">Secret</p>
+                        @if ($this->getClientSecretForDisplay())
+                            <button type="button" wire:click="toggleClientSecretVisibility"
+                                    class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+                                {{ $this->showClientSecret ? 'Ocultar' : 'Ver' }}
+                            </button>
+                        @endif
+                    </div>
+
+                    @if ($secret = $this->getClientSecretForDisplay())
+                        <p class="mt-2 break-all font-mono text-xs text-gray-950 dark:text-gray-100">
+                            {{ $this->showClientSecret ? $secret : str_repeat('•', min(strlen($secret), 24)) }}
+                        </p>
+                        <p class="mt-2 text-xs text-gray-500">Se conserva para esta sesión tras crear o rotar el secret.</p>
+                    @else
+                        <p class="mt-2 text-sm text-gray-500">No hay un secret disponible para mostrar en este momento.</p>
+                    @endif
+                </div>
+
+                <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-950">
                     <p class="text-xs uppercase tracking-wide text-gray-500">Estado</p>
                     <p class="mt-1 font-medium text-gray-950 dark:text-gray-100">Activo</p>
                 </div>

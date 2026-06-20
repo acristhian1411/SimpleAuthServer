@@ -45,6 +45,7 @@ class OAuthClientDetail extends OAuthClients
 
                         $this->generatedClientId = (string) $this->client->getKey();
                         $this->generatedClientSecret = $this->client->plainSecret;
+                        $this->rememberClientSecret($this->client, $this->client->plainSecret);
 
                         Notification::make()
                             ->title('Secret rotado')
