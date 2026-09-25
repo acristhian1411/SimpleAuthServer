@@ -1,53 +1,154 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/laravel-logo.svg" width="400" alt="Laravel Logo"></a></p>
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+# Auth Server - Granular OAuth Access Control
 
-## About Laravel
+This is a Laravel 13 OAuth2 authentication server with granular access control capabilities for OAuth clients. It uses Passport for OAuth2 implementation and spatie/laravel-permission for role-based access management.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Features
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### Granular Access Control
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+The application implements a comprehensive access control system that allows administrators to restrict which users and roles can access specific OAuth client applications.
 
-## Learning Laravel
+**Access Control Modes:**
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+1. **`all`** (default) - All authenticated users can access the client
+2. **`roles`** - Only users with specific roles can access the client
+3. **`users`** - Only specific users can access the client
+4. **`roles_or_users`** - Users with specific roles OR specific users can access
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Implementation Architecture
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+- **Model**: `App\Models\AppClient` - Extended Passport Client with role/user relationships
+- **Service**: `App\Services\ClientAccessChecker` - Validates user access against client rules
+- **Middleware**: `App\Http\Middleware\EnsureUserCanAccessClient` - Applied to all auth:api routes
+- **Admin UI**: Filament-based control panel for managing access rules
 
-## Agentic Development
+### Database Schema
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+#### Key Tables
+
+- `oauth_clients` - OAuth client applications with `access_mode` field
+- `oauth_client_roles` - Many-to-many: clients ↔ roles
+- `oauth_client_users` - Many-to-many: clients ↔ users
+- `roles` - Permission roles (uses `role_id` as primary key)
+- `permissions` - Permission definitions (uses `permission_id` as primary key)
+- `model_has_roles` - User ↔ role assignments
+- `role_has_permissions` - Role ↔ permission assignments
+
+#### Custom Primary Keys
+
+The permission tables use custom primary keys from the university database:
+
+- `roles.role_id` instead of `id`
+- `permissions.permission_id` instead of `id`
+
+Custom models handle the mapping:
+
+- `App\Models\Role` - Extends spatie Role with `role_id` primary key
+- `App\Models\Permission` - Extends spatie Permission with `permission_id` primary key
+
+## Usage
+
+### API Access
+
+Clients must authenticate using OAuth2 Password Grant flow with a bearer token:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+curl -H "Authorization: Bearer {token}" https://your-server/api/user
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### Admin Panel (Filament)
 
-## Contributing
+Navigate to `/admin/oauth-clients/{id}` to manage access rules for each client:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+1. Select the desired **access_mode**
+2. For `roles` or `roles_or_users` mode: Select roles from dropdown
+3. For `users` or `roles_or_users` mode: Select specific users
+4. Click "Guardar cambios" to persist
 
-## Code of Conduct
+### Programmatic Access
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+To check if a user can access a specific client:
+
+```php
+use App\Services\ClientAccessChecker;
+use App\Models\AppClient;
+
+$checker = app(ClientAccessChecker::class);
+$client = AppClient::find($clientId);
+
+if ($checker->userCanAccess($user, $client)) {
+    // User can access
+}
+```
+
+## Testing
+
+All access control logic is tested with 12 comprehensive tests:
+
+**Unit Tests** (8 tests in `ClientAccessCheckerTest`):
+
+- Access mode: all, roles, users, roles_or_users
+- Role-based and user-based access validation
+- Edge cases and negative scenarios
+
+**Feature Tests** (3 tests in `ClientAccessTest`):
+
+- API authentication requirements
+- Middleware application verification
+
+**Run Tests:**
+
+```bash
+make artisan CMD="test tests/ --env=testing"
+```
+
+## Installation & Setup
+
+1. Install dependencies:
+
+    ```bash
+    composer install
+    npm install
+    ```
+
+2. Run migrations:
+
+    ```bash
+    php artisan migrate
+    ```
+
+3. Create Passport clients:
+
+    ```bash
+    php artisan passport:install
+    ```
+
+4. Access the admin panel at `http://your-server/admin`
+
+## Development
+
+The application runs in Docker with:
+
+- PHP 8.3 with Laravel 13
+- PostgreSQL 16
+- Redis 7
+- Nginx with TLS
+
+Use the `Makefile` for common commands:
+
+```bash
+make up          # Start containers
+make down        # Stop containers
+make migrate     # Run migrations
+make artisan CMD="..."  # Run artisan commands
+make test        # Run tests
+```
+
+## License
+
+This project is built on Laravel and respects the same licensing terms.
 
 ## Security Vulnerabilities
 
