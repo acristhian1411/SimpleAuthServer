@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\AppClient;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 
@@ -20,6 +22,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Relation::enforceMorphMap([
+            'user' => 'App\\Models\\User',
+        ]);
+
+        Passport::useClientModel(AppClient::class);
+
         Passport::enablePasswordGrant();
 
         Passport::tokensCan([
