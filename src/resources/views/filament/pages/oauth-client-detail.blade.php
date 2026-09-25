@@ -18,19 +18,22 @@
                 <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-950">
                     <p class="text-xs uppercase tracking-wide text-gray-500">Provider</p>
                     <p class="mt-1 font-medium text-gray-950 dark:text-gray-100">
-                        {{ $this->client->provider ?? 'users' }}</p>
+                        {{ $this->client->provider ?? 'users' }}
+                    </p>
                 </div>
 
                 <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-950">
                     <p class="text-xs uppercase tracking-wide text-gray-500">Grant types</p>
                     <p class="mt-1 font-medium text-gray-950 dark:text-gray-100">
-                        {{ implode(', ', $this->client->grant_types) }}</p>
+                        {{ implode(', ', $this->client->grant_types) }}
+                    </p>
                 </div>
 
                 <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-950">
                     <p class="text-xs uppercase tracking-wide text-gray-500">Tipo</p>
                     <p class="mt-1 font-medium text-gray-950 dark:text-gray-100">
-                        {{ $this->client->confidential() ? 'Confidencial' : 'Público' }}</p>
+                        {{ $this->client->confidential() ? 'Confidencial' : 'Público' }}
+                    </p>
                 </div>
 
                 <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-950">
@@ -44,7 +47,7 @@
                         <p class="text-xs uppercase tracking-wide text-gray-500">Secret</p>
                         @if ($this->getClientSecretForDisplay())
                             <button type="button" wire:click="toggleClientSecretVisibility"
-                                    class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+                                class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
                                 {{ $this->showClientSecret ? 'Ocultar' : 'Ver' }}
                             </button>
                         @endif
@@ -65,6 +68,26 @@
                     <p class="mt-1 font-medium text-gray-950 dark:text-gray-100">Activo</p>
                 </div>
             </div>
+        </x-filament::section>
+
+        <x-filament::section>
+            <x-slot name="heading">
+                Control de Acceso
+            </x-slot>
+
+            <x-slot name="description">
+                Define qué usuarios y roles pueden acceder a este cliente. Puedes combinar múltiples roles y usuarios.
+            </x-slot>
+
+            <form wire:submit="saveAccessSettings">
+                {{ $this->form }}
+
+                <div class="flex justify-end pt-6 border-t mt-6">
+                    <x-filament::button type="submit">
+                        Guardar cambios
+                    </x-filament::button>
+                </div>
+            </form>
         </x-filament::section>
 
         @if ($this->client->hasGrantType('authorization_code'))
@@ -114,9 +137,11 @@
                             <div class="space-y-1">
                                 <p class="font-medium text-gray-950 dark:text-gray-100">Token {{ $token->getKey() }}</p>
                                 <p class="text-xs text-gray-500">Expira:
-                                    {{ optional($token->expires_at)->format('Y-m-d H:i') ?? 'sin fecha' }}</p>
+                                    {{ optional($token->expires_at)->format('Y-m-d H:i') ?? 'sin fecha' }}
+                                </p>
                                 <p class="text-xs text-gray-500">Scopes:
-                                    {{ blank($token->scopes) ? 'sin scopes' : implode(', ', $token->scopes) }}</p>
+                                    {{ blank($token->scopes) ? 'sin scopes' : implode(', ', $token->scopes) }}
+                                </p>
                                 <p class="text-xs text-gray-500">Refresh token:
                                     {{ $token->refreshToken ? ($token->refreshToken->revoked ? 'revocado' : 'activo') : 'sin refresh token' }}
                                 </p>

@@ -2,15 +2,25 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\AppClient;
+use App\Models\Role;
+use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Form;
+// use Filament\Forms\Get;
 use Filament\Notifications\Notification;
-use Laravel\Passport\Client;
 use Laravel\Passport\ClientRepository;
-use Laravel\Passport\Passport;
 use Throwable;
+use Filament\Schemas\Schema;
 
-class OAuthClientDetail extends OAuthClients
+class OAuthClientDetail extends OAuthClients implements HasForms
 {
+    use InteractsWithForms;
+
     protected static ?string $slug = 'o-auth-clients/{client}';
 
     protected static bool $shouldRegisterNavigation = false;
@@ -19,15 +29,102 @@ class OAuthClientDetail extends OAuthClients
 
     public string $clientId;
 
+    public ?array $data = [];
+
     public function mount(?string $client = null): void
     {
         $this->clientId = $client ?? '';
-        $this->resolveClient();
+        $resolved = $this->resolveClient();
+
+        $this->form->fill([
+            'accessMode' => $resolved->access_mode,
+            'roles' => $resolved->roles->pluck('role_id')->toArray(),
+            'users' => $resolved->allowedUsers->pluck('id')->toArray(),
+        ]);
     }
 
     public function getTitle(): string
     {
-        return $this->client->name;
+        return $this->resolveClient()->name;
+    }
+
+    public function getClientProperty(): AppClient
+    {
+        return $this->resolveClient();
+    }
+
+    public function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Radio::make('accessMode')
+                    ->label('Modo de acceso')
+                    ->options([
+                        'all' => 'Todos los usuarios',
+                        'roles' => 'Por rol',
+                        'users' => 'Usuarios específicos',
+                        'roles_or_users' => 'Rol o usuario específico',
+                    ])
+                    ->descriptions([
+                        'all' => 'Todos los usuarios pueden acceder sin restricciones',
+                        'roles' => 'Solo usuarios con los roles seleccionados',
+                        'users' => 'Solo los usuarios específicos seleccionados',
+                        'roles_or_users' => 'Usuarios con el rol O el usuario específico seleccionado',
+                    ])
+                    ->columns(2)
+                    ->live()
+                    ->required(),
+
+                Select::make('roles')
+                    ->label('Roles permitidos')
+                    ->multiple()
+                    ->searchable()
+                    ->preload(false)
+                    ->getSearchResultsUsing(
+                        fn(string $search): array => Role::query()
+                            ->where('role_name', 'like', "%{$search}%")
+                            ->limit(50)
+                            ->pluck('role_name', 'role_id')
+                            ->toArray()
+                    )
+                    ->getOptionLabelsUsing(
+                        fn(array $values): array => Role::query()
+                            ->whereIn('role_id', $values)
+                            ->pluck('role_name', 'role_id')
+                            ->toArray()
+                    )
+                    ->placeholder('Buscar roles por nombre...')
+                    ->helperText('Escribí para buscar. No se muestra la lista completa.')
+                    ->visible(fn($get) => in_array($get('accessMode'), ['roles', 'roles_or_users'])),
+
+                Select::make('users')
+                    ->label('Usuarios permitidos')
+                    ->multiple()
+                    ->searchable()
+                    ->preload(false)
+                    ->getSearchResultsUsing(
+                        fn(string $search): array => User::query()
+                            ->where(function ($query) use ($search) {
+                                $query->where('name', 'like', "%{$search}%")
+                                    ->orWhere('email', 'like', "%{$search}%");
+                            })
+                            ->limit(50)
+                            ->get()
+                            ->mapWithKeys(fn(User $user) => [$user->id => "{$user->name} ({$user->email})"])
+                            ->toArray()
+                    )
+                    ->getOptionLabelsUsing(
+                        fn(array $values): array => User::query()
+                            ->whereIn('id', $values)
+                            ->get()
+                            ->mapWithKeys(fn(User $user) => [$user->id => "{$user->name} ({$user->email})"])
+                            ->toArray()
+                    )
+                    ->placeholder('Buscar usuarios por nombre o email...')
+                    ->helperText('Escribí para buscar. No se muestra la lista completa.')
+                    ->visible(fn($get) => in_array($get('accessMode'), ['users', 'roles_or_users'])),
+            ])
+            ->statePath('data');
     }
 
     protected function getHeaderActions(): array
@@ -73,7 +170,7 @@ class OAuthClientDetail extends OAuthClients
                         Notification::make()
                             ->title('Cliente revocado')
                             ->success()
-                            ->body('Tambien se revocaron access y refresh tokens emitidos para este cliente.')
+                            ->body('También se revocaron access y refresh tokens emitidos para este cliente.')
                             ->send();
 
                         $this->redirect(OAuthClients::getUrl());
@@ -88,16 +185,46 @@ class OAuthClientDetail extends OAuthClients
         ];
     }
 
-    public function getClientProperty(): Client
+    public function saveAccessSettings(): void
     {
-        return $this->resolveClient();
+        try {
+            $state = $this->form->getState();
+            $client = $this->resolveClient();
+
+            $client->update([
+                'access_mode' => $state['accessMode'],
+            ]);
+
+            if (in_array($state['accessMode'], ['roles', 'roles_or_users'])) {
+                $client->roles()->sync($state['roles'] ?? []);
+            } else {
+                $client->roles()->detach();
+            }
+
+            if (in_array($state['accessMode'], ['users', 'roles_or_users'])) {
+                $client->allowedUsers()->sync($state['users'] ?? []);
+            } else {
+                $client->allowedUsers()->detach();
+            }
+
+            Notification::make()
+                ->title('Configuración guardada')
+                ->success()
+                ->body('Las reglas de acceso se actualizaron correctamente.')
+                ->send();
+        } catch (Throwable $exception) {
+            Notification::make()
+                ->title('Error al guardar')
+                ->danger()
+                ->body($exception->getMessage())
+                ->send();
+        }
     }
 
-    protected function resolveClient(): Client
+    protected function resolveClient(): AppClient
     {
-        return Passport::client()
-            ->newQuery()
-            ->with('tokens.refreshToken')
+        return AppClient::query()
+            ->with('tokens.refreshToken', 'roles', 'allowedUsers')
             ->whereKey($this->clientId)
             ->where('revoked', false)
             ->firstOrFail();
