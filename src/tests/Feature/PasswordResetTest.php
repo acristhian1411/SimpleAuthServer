@@ -90,4 +90,23 @@ class PasswordResetTest extends TestCase
 
         $response->assertOk()->assertJsonPath('reset_password', false);
     }
+
+    public function test_login_accepts_username_as_identifier(): void
+    {
+        $user = User::factory()->create([
+            'username' => 'acristhian1411',
+            'email' => 'acristhian35@gmail.com',
+        ]);
+        $client = AppClient::factory()->asPasswordClient()->create();
+
+        $response = $this->postJson('/oauth/token', [
+            'grant_type' => 'password',
+            'client_id' => $client->id,
+            'client_secret' => $client->plainSecret,
+            'username' => 'acristhian1411',
+            'password' => 'password',
+        ]);
+
+        $response->assertOk();
+    }
 }
