@@ -20,6 +20,15 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     /**
+     * Passport looks users up by exact email; the app lets people type it by
+     * hand, so ignore case and surrounding spaces.
+     */
+    public function findForPassport(string $username): ?self
+    {
+        return static::whereRaw('lower(email) = lower(?)', [trim($username)])->first();
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
