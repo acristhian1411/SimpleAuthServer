@@ -23,6 +23,10 @@ class UserForm
                     ->required()
                     ->unique(ignoreRecord: true)
                     ->maxLength(255),
+                TextInput::make('username')
+                    ->required()
+                    ->unique(ignoreRecord: true)
+                    ->maxLength(255),
                 DateTimePicker::make('email_verified_at'),
                 TextInput::make('password')
                     ->password()
