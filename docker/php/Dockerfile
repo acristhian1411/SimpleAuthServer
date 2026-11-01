@@ -1,3 +1,12 @@
+FROM node:20-alpine AS assets
+WORKDIR /app
+COPY src/package*.json ./
+RUN npm install
+COPY src/resources/ resources/
+COPY src/vite.config.js ./
+RUN npm run build
+# ... todo tu contenido actual del Dockerfile ...
+
 FROM php:8.3-fpm
 
 # System packages and PHP extensions required by Laravel and Passport ecosystem.
@@ -35,5 +44,5 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
+COPY --from=assets /app/public/build /var/www/public/build
 WORKDIR /var/www
