@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'reset_password'])]
+#[Fillable(['name', 'username', 'email', 'password', 'reset_password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
