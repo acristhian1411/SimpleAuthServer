@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\AppClient;
+use App\Passport\BearerTokenResponse;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
@@ -27,6 +28,8 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         Passport::useClientModel(AppClient::class);
+
+        Passport::useAuthorizationServerResponseType(new BearerTokenResponse);
 
         Passport::enablePasswordGrant();
 

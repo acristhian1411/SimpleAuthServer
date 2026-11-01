@@ -17,6 +17,7 @@ Route::middleware(['auth:api', EnsureUserCanAccessClient::class])->prefix('mobil
             'id' => $request->user()->getAuthIdentifier(),
             'name' => $request->user()->name,
             'email' => $request->user()->email,
+            'reset_password' => $request->user()->reset_password,
         ]);
     });
 });
